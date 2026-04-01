@@ -1,0 +1,115 @@
+import { useState } from 'react'
+
+export interface AgentConfig {
+  url: string
+  agentName: string
+  sessionId: string
+}
+
+const STORAGE_KEY = 'cf-agent-playground-config'
+
+function loadConfig(): AgentConfig | null {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null')
+  } catch {
+    return null
+  }
+}
+
+interface Props {
+  onConnect: (config: AgentConfig) => void
+}
+
+export default function ConfigScreen({ onConnect }: Props) {
+  const saved = loadConfig()
+  const [url, setUrl] = useState(saved?.url ?? 'https://')
+  const [agentName, setAgentName] = useState(saved?.agentName ?? 'NovaAgent')
+  const [sessionId, setSessionId] = useState(saved?.sessionId ?? 'test-session-1')
+  const [error, setError] = useState('')
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    try {
+      new URL(url)
+      const config: AgentConfig = { url, agentName, sessionId }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
+      onConnect(config)
+    } catch {
+      setError('Enter a valid URL including https://')
+    }
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 mb-4">
+            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Agent Playground</h1>
+          <p className="text-sm text-gray-500 mt-1">Connect to any Cloudflare AIChatAgent</p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Worker URL</label>
+              <input
+                type="url"
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+                placeholder="https://nova-staging.example.workers.dev"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Agent Class</label>
+                <input
+                  type="text"
+                  value={agentName}
+                  onChange={e => setAgentName(e.target.value)}
+                  placeholder="NovaAgent"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Session ID</label>
+                <input
+                  type="text"
+                  value={sessionId}
+                  onChange={e => setSessionId(e.target.value)}
+                  placeholder="test-session-1"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Each Session ID is a unique Durable Object instance with its own persisted message history.
+            </p>
+
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors"
+            >
+              Connect →
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  )
+}

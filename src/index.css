@@ -1,0 +1,9 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* Streamdown — tell Tailwind to scan these for class names */
+@source "../node_modules/streamdown/dist";
+@source "../node_modules/@streamdown/code/dist";
+
+/* Streamdown streaming caret animation */
+@import "streamdown/styles.css";
