@@ -5,6 +5,7 @@ export interface AgentConfig {
   agentName: string
   companyId: string
   vendorId: string
+  apiKey: string
 }
 
 export function sessionId(config: Pick<AgentConfig, 'companyId' | 'vendorId'>): string {
@@ -12,6 +13,7 @@ export function sessionId(config: Pick<AgentConfig, 'companyId' | 'vendorId'>): 
 }
 
 const STORAGE_KEY = 'cf-agent-playground-config'
+const ADMIN_CONFIG_KEY = 'cf-nova-admin-config'
 
 function loadConfig(): AgentConfig | null {
   try {
@@ -21,27 +23,48 @@ function loadConfig(): AgentConfig | null {
   }
 }
 
-interface Props {
-  onConnect: (config: AgentConfig) => void
+function loadAdminApiKey(): string {
+  try {
+    const admin = JSON.parse(localStorage.getItem(ADMIN_CONFIG_KEY) ?? 'null')
+    return admin?.apiKey ?? ''
+  } catch {
+    return ''
+  }
 }
 
-export default function ConfigScreen({ onConnect }: Props) {
+interface Props {
+  onConnect: (config: AgentConfig) => void
+  connecting?: boolean
+  connectError?: string
+}
+
+export default function ConfigScreen({ onConnect, connecting = false, connectError = '' }: Props) {
   const saved = loadConfig()
   const [url, setUrl] = useState(saved?.url ?? 'https://')
   const [agentName, setAgentName] = useState(saved?.agentName ?? 'NovaAgent')
   const [companyId, setCompanyId] = useState(saved?.companyId ?? '')
   const [vendorId, setVendorId] = useState(saved?.vendorId ?? '')
-  const [error, setError] = useState('')
+  const [apiKey, setApiKey] = useState(saved?.apiKey ?? loadAdminApiKey())
+  const [localError, setLocalError] = useState('')
+
+  const displayError = connectError || localError
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setLocalError('')
     try {
       new URL(url)
-      const config: AgentConfig = { url, agentName, companyId: companyId.trim(), vendorId: vendorId.trim() }
+      const config: AgentConfig = {
+        url: url.replace(/\/$/, ''),
+        agentName,
+        companyId: companyId.trim(),
+        vendorId: vendorId.trim(),
+        apiKey: apiKey.trim(),
+      }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
       onConnect(config)
     } catch {
-      setError('Enter a valid URL including https://')
+      setLocalError('Enter a valid URL including https://')
     }
   }
 
@@ -67,6 +90,18 @@ export default function ConfigScreen({ onConnect }: Props) {
                 value={url}
                 onChange={e => setUrl(e.target.value)}
                 placeholder="https://nova-staging.example.workers.dev"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="RX_API_KEY"
                 className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
@@ -110,20 +145,21 @@ export default function ConfigScreen({ onConnect }: Props) {
             </div>
 
             <p className="text-xs text-gray-400 leading-relaxed">
-              Each <span className="font-mono">companyId:vendorId</span> pair maps to a unique Durable Object instance with its own persisted message history.
+              Calls <span className="font-mono">POST /nova/start</span> to initialise the agent, then opens the WebSocket — replicating the platform flow.
             </p>
 
-            {error && (
+            {displayError && (
               <div className="bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <p className="text-sm text-red-600">{error}</p>
+                <p className="text-sm text-red-600">{displayError}</p>
               </div>
             )}
 
             <button
               type="submit"
-              className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors"
+              disabled={connecting}
+              className="w-full bg-blue-600 text-white py-2.5 rounded-lg text-sm font-semibold hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Connect →
+              {connecting ? 'Starting agent…' : 'Connect →'}
             </button>
           </form>
         </div>
