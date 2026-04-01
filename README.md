@@ -40,12 +40,10 @@ Click **Connect** and start chatting.
 | Vite + React + TypeScript | Build tooling |
 | Tailwind CSS v4 | Styling |
 
-## Session ID strategy
+## Session identity
 
-In production NOVA is keyed by `companyId:vendorId`. For testing use any string:
+NOVA instances are keyed by `companyId:vendorId` — both are UUID strings from the RX platform database. The config form takes them as separate fields and combines them internally.
 
-- `test-session-1` — main dev session (persists across refreshes)
-- `lewis-test` — personal named session
-- `demo-2026-04-01` — date-stamped session for demos
+The Durable Object instance name is `companyId:vendorId`. Each instance retains its full message history in SQLite storage until you click **Clear history**.
 
-Each session retains its full message history in the Durable Object's SQLite storage until you click **Clear history**.
+Cloudflare KV handles UUID-length keys with no issues (max key size is 512 bytes; a `uuid:uuid` pair is ~73 characters).

@@ -2,13 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAgent } from 'agents/react'
 import { useAgentChat } from '@cloudflare/ai-chat/react'
 import type { AgentConfig } from './ConfigScreen'
+import { sessionId as makeSessionId } from './ConfigScreen'
 import MessageBubble from './MessageBubble'
 
 interface Props extends AgentConfig {
   onDisconnect: () => void
 }
 
-export default function ChatScreen({ url, agentName, sessionId, onDisconnect }: Props) {
+export default function ChatScreen({ url, agentName, companyId, vendorId, onDisconnect }: Props) {
+  const sessionId = makeSessionId({ companyId, vendorId })
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -51,8 +53,14 @@ export default function ChatScreen({ url, agentName, sessionId, onDisconnect }: 
           <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
           <span className="text-sm font-semibold text-gray-900 flex-shrink-0">{agentName}</span>
           <span className="text-gray-300 flex-shrink-0">/</span>
-          <span className="text-sm text-gray-500 font-mono truncate">{sessionId}</span>
-          <span className="hidden sm:block text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full font-mono flex-shrink-0">
+          <div className="flex items-center gap-1 min-w-0">
+            <span className="text-xs text-gray-400 flex-shrink-0">co:</span>
+            <span className="text-sm text-gray-500 font-mono truncate">{companyId}</span>
+            <span className="text-gray-300 flex-shrink-0 hidden sm:block">·</span>
+            <span className="text-xs text-gray-400 flex-shrink-0 hidden sm:block">ve:</span>
+            <span className="text-sm text-gray-500 font-mono truncate hidden sm:block">{vendorId}</span>
+          </div>
+          <span className="hidden lg:block text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full font-mono flex-shrink-0">
             {new URL(url).hostname}
           </span>
         </div>
@@ -83,6 +91,7 @@ export default function ChatScreen({ url, agentName, sessionId, onDisconnect }: 
             </div>
             <p className="text-sm font-medium text-gray-600">Start a conversation</p>
             <p className="text-xs text-gray-400 mt-1">Type a message below to chat with {agentName}</p>
+            <p className="text-xs text-gray-300 mt-0.5 font-mono">{sessionId}</p>
           </div>
         )}
 

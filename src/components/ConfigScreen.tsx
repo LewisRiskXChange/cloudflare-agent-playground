@@ -3,7 +3,12 @@ import { useState } from 'react'
 export interface AgentConfig {
   url: string
   agentName: string
-  sessionId: string
+  companyId: string
+  vendorId: string
+}
+
+export function sessionId(config: Pick<AgentConfig, 'companyId' | 'vendorId'>): string {
+  return `${config.companyId}:${config.vendorId}`
 }
 
 const STORAGE_KEY = 'cf-agent-playground-config'
@@ -24,14 +29,15 @@ export default function ConfigScreen({ onConnect }: Props) {
   const saved = loadConfig()
   const [url, setUrl] = useState(saved?.url ?? 'https://')
   const [agentName, setAgentName] = useState(saved?.agentName ?? 'NovaAgent')
-  const [sessionId, setSessionId] = useState(saved?.sessionId ?? 'test-session-1')
+  const [companyId, setCompanyId] = useState(saved?.companyId ?? '')
+  const [vendorId, setVendorId] = useState(saved?.vendorId ?? '')
   const [error, setError] = useState('')
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     try {
       new URL(url)
-      const config: AgentConfig = { url, agentName, sessionId }
+      const config: AgentConfig = { url, agentName, companyId: companyId.trim(), vendorId: vendorId.trim() }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
       onConnect(config)
     } catch {
@@ -66,33 +72,45 @@ export default function ConfigScreen({ onConnect }: Props) {
               />
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Agent Class</label>
+              <input
+                type="text"
+                value={agentName}
+                onChange={e => setAgentName(e.target.value)}
+                placeholder="NovaAgent"
+                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              />
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Agent Class</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Company ID</label>
                 <input
                   type="text"
-                  value={agentName}
-                  onChange={e => setAgentName(e.target.value)}
-                  placeholder="NovaAgent"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={companyId}
+                  onChange={e => setCompanyId(e.target.value)}
+                  placeholder="uuid"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Session ID</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Vendor ID</label>
                 <input
                   type="text"
-                  value={sessionId}
-                  onChange={e => setSessionId(e.target.value)}
-                  placeholder="test-session-1"
-                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  value={vendorId}
+                  onChange={e => setVendorId(e.target.value)}
+                  placeholder="uuid"
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
                   required
                 />
               </div>
             </div>
 
             <p className="text-xs text-gray-400 leading-relaxed">
-              Each Session ID is a unique Durable Object instance with its own persisted message history.
+              Each <span className="font-mono">companyId:vendorId</span> pair maps to a unique Durable Object instance with its own persisted message history.
             </p>
 
             {error && (
