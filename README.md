@@ -42,7 +42,7 @@ Click **Connect** and start chatting.
 
 ## Session ID strategy
 
-In production NOVA is keyed by `customerId:vendorId`. For testing use any string:
+In production NOVA is keyed by `companyId:vendorId`. For testing use any string:
 
 - `test-session-1` — main dev session (persists across refreshes)
 - `lewis-test` — personal named session
