@@ -12,7 +12,7 @@ export interface AgentConfig {
 }
 
 export function sessionId(config: Pick<AgentConfig, 'companyId' | 'vendorId'>): string {
-  return `${config.companyId}:${config.vendorId}`
+  return `${config.companyId}_${config.vendorId}`
 }
 
 const STORAGE_KEY = 'cf-agent-playground-config'
