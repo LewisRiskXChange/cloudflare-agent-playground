@@ -4,14 +4,17 @@ import { useAgentChat } from '@cloudflare/ai-chat/react'
 import type { AgentConfig } from './ConfigScreen'
 import { sessionId as makeSessionId } from './ConfigScreen'
 import MessageBubble from './MessageBubble'
+import WorkflowPanel from './WorkflowPanel'
 
 interface Props extends AgentConfig {
   onDisconnect: () => void
 }
 
-export default function ChatScreen({ url, agentName, companyId, vendorId, onDisconnect }: Props) {
+export default function ChatScreen({ url, agentName, companyId, vendorId, apiKey, onDisconnect }: Props) {
   const sessionId = makeSessionId({ companyId, vendorId })
+  const instanceName = sessionId
   const [input, setInput] = useState('')
+  const [showWorkflow, setShowWorkflow] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -66,6 +69,16 @@ export default function ChatScreen({ url, agentName, companyId, vendorId, onDisc
         </div>
         <div className="flex items-center gap-3 flex-shrink-0 ml-4">
           <button
+            onClick={() => setShowWorkflow(s => !s)}
+            className={`text-xs font-medium transition-colors border rounded-md px-2.5 py-1 hidden md:block ${
+              showWorkflow
+                ? 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
+                : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            {showWorkflow ? 'Hide workflow' : 'Workflow'}
+          </button>
+          <button
             onClick={clearHistory}
             className="text-xs text-gray-400 hover:text-red-500 transition-colors hidden sm:block"
           >
@@ -80,64 +93,77 @@ export default function ChatScreen({ url, agentName, companyId, vendorId, onDisc
         </div>
       </div>
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-4">
-        {messages.length === 0 && !isLoading && (
-          <div className="h-full flex flex-col items-center justify-center text-center">
-            <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
-              <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-              </svg>
-            </div>
-            <p className="text-sm font-medium text-gray-600">Start a conversation</p>
-            <p className="text-xs text-gray-400 mt-1">Type a message below to chat with {agentName}</p>
-            <p className="text-xs text-gray-300 mt-0.5 font-mono">{sessionId}</p>
+      {/* Body: chat + optional workflow panel */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Chat column */}
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {messages.length === 0 && !isLoading && (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mb-3">
+                  <svg className="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-gray-600">Start a conversation</p>
+                <p className="text-xs text-gray-400 mt-1">Type a message below to chat with {agentName}</p>
+                <p className="text-xs text-gray-300 mt-0.5 font-mono">{sessionId}</p>
+              </div>
+            )}
+
+            {messages.map((msg, i) => (
+              <MessageBubble
+                key={msg.id ?? String(i)}
+                message={msg}
+                isAnimating={isStreaming && msg.role === 'assistant' && i === messages.length - 1}
+              />
+            ))}
+
+            {status === 'submitted' && (
+              <div className="flex justify-start mb-3">
+                <div className="bg-white border border-gray-100 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
+                  <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+                </div>
+              </div>
+            )}
+
+            <div ref={bottomRef} />
           </div>
-        )}
 
-        {messages.map((msg, i) => (
-          <MessageBubble
-            key={msg.id ?? String(i)}
-            message={msg}
-            isAnimating={isStreaming && msg.role === 'assistant' && i === messages.length - 1}
-          />
-        ))}
-
-        {status === 'submitted' && (
-          <div className="flex justify-start mb-3">
-            <div className="bg-white border border-gray-100 rounded-2xl rounded-tl-md px-4 py-3 shadow-sm flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:300ms]" />
+          {/* Input */}
+          <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-3">
+            <div className="flex gap-2 items-end">
+              <textarea
+                ref={inputRef}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={`Message ${agentName}… (Enter to send, Shift+Enter for newline)`}
+                rows={1}
+                disabled={isLoading}
+                className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50 disabled:bg-gray-50 transition-colors"
+                style={{ minHeight: '42px', maxHeight: '160px', fieldSizing: 'content' } as React.CSSProperties}
+              />
+              <button
+                onClick={submit}
+                disabled={isLoading || !input.trim()}
+                className="flex-shrink-0 h-[42px] bg-blue-600 text-white px-4 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Send
+              </button>
             </div>
           </div>
-        )}
-
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Input */}
-      <div className="flex-shrink-0 bg-white border-t border-gray-200 px-4 py-3">
-        <div className="flex gap-2 items-end">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={`Message ${agentName}… (Enter to send, Shift+Enter for newline)`}
-            rows={1}
-            disabled={isLoading}
-            className="flex-1 px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none disabled:opacity-50 disabled:bg-gray-50 transition-colors"
-            style={{ minHeight: '42px', maxHeight: '160px', fieldSizing: 'content' } as React.CSSProperties}
-          />
-          <button
-            onClick={submit}
-            disabled={isLoading || !input.trim()}
-            className="flex-shrink-0 h-[42px] bg-blue-600 text-white px-4 rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Send
-          </button>
         </div>
+
+        {/* Workflow panel */}
+        {showWorkflow && (
+          <div className="hidden md:block w-80 lg:w-96 flex-shrink-0 overflow-hidden">
+            <WorkflowPanel url={url} apiKey={apiKey} instanceName={instanceName} />
+          </div>
+        )}
       </div>
     </div>
   )
