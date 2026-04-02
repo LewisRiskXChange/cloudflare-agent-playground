@@ -1,11 +1,14 @@
 import { useState } from 'react'
 
+export type AutonomyMode = 'manual' | 'assisted' | 'autonomous'
+
 export interface AgentConfig {
   url: string
   agentName: string
   companyId: string
   vendorId: string
   apiKey: string
+  autonomyMode: AutonomyMode
 }
 
 export function sessionId(config: Pick<AgentConfig, 'companyId' | 'vendorId'>): string {
@@ -38,6 +41,12 @@ interface Props {
   connectError?: string
 }
 
+const AUTONOMY_OPTIONS: { value: AutonomyMode; label: string; description: string }[] = [
+  { value: 'manual',     label: 'Manual',     description: 'Nova monitors only — no automated actions' },
+  { value: 'assisted',   label: 'Assisted',   description: 'AI drafts emails, human approves each step' },
+  { value: 'autonomous', label: 'Autonomous', description: 'AI acts fully automatically (reserved)' },
+]
+
 export default function ConfigScreen({ onConnect, connecting = false, connectError = '' }: Props) {
   const saved = loadConfig()
   const [url, setUrl] = useState(saved?.url ?? 'https://')
@@ -45,6 +54,7 @@ export default function ConfigScreen({ onConnect, connecting = false, connectErr
   const [companyId, setCompanyId] = useState(saved?.companyId ?? '')
   const [vendorId, setVendorId] = useState(saved?.vendorId ?? '')
   const [apiKey, setApiKey] = useState(saved?.apiKey ?? loadAdminApiKey())
+  const [autonomyMode, setAutonomyMode] = useState<AutonomyMode>(saved?.autonomyMode ?? 'assisted')
   const [localError, setLocalError] = useState('')
 
   const displayError = connectError || localError
@@ -60,6 +70,7 @@ export default function ConfigScreen({ onConnect, connecting = false, connectErr
         companyId: companyId.trim(),
         vendorId: vendorId.trim(),
         apiKey: apiKey.trim(),
+        autonomyMode,
       }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(config))
       onConnect(config)
@@ -144,8 +155,31 @@ export default function ConfigScreen({ onConnect, connecting = false, connectErr
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Autonomy Mode</label>
+              <div className="space-y-2">
+                {AUTONOMY_OPTIONS.map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAutonomyMode(opt.value)}
+                    className={`w-full text-left px-3 py-2.5 rounded-lg border text-sm transition-colors ${
+                      autonomyMode === opt.value
+                        ? 'border-blue-500 bg-blue-50 text-blue-900'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="font-medium">{opt.label}</span>
+                    <span className={`block text-xs mt-0.5 ${autonomyMode === opt.value ? 'text-blue-600' : 'text-gray-400'}`}>
+                      {opt.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <p className="text-xs text-gray-400 leading-relaxed">
-              Calls <span className="font-mono">POST /nova/start</span> to initialise the agent, then opens the WebSocket — replicating the platform flow.
+              Calls <span className="font-mono">POST /nova/start</span> with the selected mode, then opens the WebSocket — replicating the platform flow.
             </p>
 
             {displayError && (

@@ -31,7 +31,7 @@ export default function App() {
           'Content-Type': 'application/json',
           'x-api-key': config.apiKey,
         },
-        body: JSON.stringify({ companyId: config.companyId, vendorId: config.vendorId }),
+        body: JSON.stringify({ companyId: config.companyId, vendorId: config.vendorId, autonomyMode: config.autonomyMode }),
       })
       if (!res.ok) {
         const text = await res.text().catch(() => '')
