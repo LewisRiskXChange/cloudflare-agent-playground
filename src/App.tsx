@@ -44,6 +44,11 @@ export default function App() {
         )
         return
       }
+      const data = await res.json<{ ok: boolean; workflowError?: string | null }>().catch(() => ({ ok: true }))
+      if (data.workflowError) {
+        setConnectError(`Connected but workflow failed to start: ${data.workflowError}`)
+        return
+      }
       setChatConfig(config)
     } catch {
       setConnectError('Could not reach the Worker — check the URL and that it is deployed')
