@@ -320,9 +320,17 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
                       </div>
                     </div>
                   ) : (
-                    <div className="p-3 space-y-1.5">
-                      <p className="text-xs font-semibold text-gray-800 leading-snug">{approval.emailSubject}</p>
-                      <p className="text-xs text-gray-500 leading-relaxed line-clamp-4 whitespace-pre-line">{approval.emailBody}</p>
+                    <div className="p-3 space-y-2">
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Subject</p>
+                        <p className="text-xs font-semibold text-gray-800 leading-snug">{approval.emailSubject}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">Body</p>
+                        <div className="max-h-48 overflow-y-auto rounded-lg bg-gray-50 border border-gray-100 px-2.5 py-2">
+                          <p className="text-xs text-gray-600 leading-relaxed whitespace-pre-wrap">{approval.emailBody}</p>
+                        </div>
+                      </div>
                     </div>
                   )}
 
