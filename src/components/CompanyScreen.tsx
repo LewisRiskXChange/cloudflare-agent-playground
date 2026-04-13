@@ -8,7 +8,7 @@ interface Props extends CompanyAgentConfig {
   onDisconnect: () => void
 }
 
-export default function CompanyScreen({ url, companyId, apiKey, onDisconnect }: Props) {
+export default function CompanyScreen({ url, companyId, onDisconnect }: Props) {
   const [input, setInput] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
