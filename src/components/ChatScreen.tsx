@@ -161,7 +161,7 @@ export default function ChatScreen({ url, agentName, companyId, vendorId, apiKey
         {/* Workflow panel */}
         {showWorkflow && (
           <div className="hidden md:block w-80 lg:w-96 flex-shrink-0 overflow-hidden">
-            <WorkflowPanel url={url} apiKey={apiKey} instanceName={instanceName} />
+            <WorkflowPanel url={url} apiKey={apiKey} instanceName={instanceName} agent={agent} />
           </div>
         )}
       </div>

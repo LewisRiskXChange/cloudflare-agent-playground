@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+interface AgentLike extends EventTarget {
+  readyState?: number
+}
+
 interface Props {
   url: string
   apiKey: string
   instanceName: string
+  /** The agent WebSocket (PartySocket) from useAgent — used for real-time status push */
+  agent?: AgentLike | null
 }
 
 type OnboardingStatus =
@@ -13,6 +19,8 @@ type OnboardingStatus =
   | 'awaiting_acceptance'
   | 'nudge_pending_approval'
   | 'nudge_sent'
+  | 'assessment_pending_approval'
+  | 'assessment_sent'
   | 'completed'
   | 'failed'
   | null
@@ -35,18 +43,23 @@ const STATUS_TO_STEP: Record<string, number> = {
   started: 0,
   invite_pending_approval: 1,
   invite_sent: 2,
-  awaiting_acceptance: 2,
-  nudge_pending_approval: 2,
-  nudge_sent: 2,
-  completed: 3,
+  awaiting_acceptance: 3,
+  nudge_pending_approval: 3,
+  nudge_sent: 3,
+  assessment_pending_approval: 4,
+  assessment_sent: 5,
+  completed: 6,
   failed: -1,
 }
 
 const FLOW_STEPS = [
   { label: 'Vendor profile fetched' },
   { label: 'Invite ready for review' },
-  { label: 'Invite sent — awaiting acceptance' },
-  { label: 'Vendor accepted' },
+  { label: 'Invite sent' },
+  { label: 'Awaiting acceptance' },
+  { label: 'Assessment ready for review' },
+  { label: 'Assessment sent' },
+  { label: 'Onboarding complete' },
 ]
 
 function StatusBadge({ status }: { status: OnboardingStatus }) {
@@ -57,9 +70,11 @@ function StatusBadge({ status }: { status: OnboardingStatus }) {
     invite_pending_approval:  { label: 'Pending approval',         cls: 'bg-amber-100 text-amber-700' },
     invite_sent:              { label: 'Invite sent',              cls: 'bg-indigo-100 text-indigo-700' },
     awaiting_acceptance:      { label: 'Awaiting acceptance',      cls: 'bg-indigo-100 text-indigo-700' },
-    nudge_pending_approval:   { label: 'Nudge pending approval',   cls: 'bg-amber-100 text-amber-700' },
-    nudge_sent:               { label: 'Nudge sent',               cls: 'bg-indigo-100 text-indigo-700' },
-    completed:                { label: 'Completed',                cls: 'bg-green-100 text-green-700' },
+    nudge_pending_approval:       { label: 'Nudge pending approval',       cls: 'bg-amber-100 text-amber-700' },
+    nudge_sent:                   { label: 'Nudge sent',                   cls: 'bg-indigo-100 text-indigo-700' },
+    assessment_pending_approval:  { label: 'Assessment pending approval',  cls: 'bg-amber-100 text-amber-700' },
+    assessment_sent:              { label: 'Assessment sent',              cls: 'bg-indigo-100 text-indigo-700' },
+    completed:                    { label: 'Completed',                    cls: 'bg-green-100 text-green-700' },
     failed:                   { label: 'Failed',                   cls: 'bg-red-100 text-red-700' },
   }
 
@@ -71,8 +86,10 @@ function StatusBadge({ status }: { status: OnboardingStatus }) {
   )
 }
 
-export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
+export default function WorkflowPanel({ url, apiKey, instanceName, agent }: Props) {
   const [status, setStatus] = useState<OnboardingStatus>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [emailOverride, setEmailOverride] = useState<string | null>(null)
   const [approvals, setApprovals] = useState<NovaApproval[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editSubject, setEditSubject] = useState('')
@@ -87,19 +104,8 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
     toastTimer.current = setTimeout(() => setToast(''), 3000)
   }
 
-  const poll = useCallback(async () => {
+  const fetchApprovals = useCallback(async () => {
     try {
-      // Fetch session status from KV via GET /nova/sessions
-      const sessRes = await fetch(`${url}/nova/sessions`, {
-        headers: { 'x-api-key': apiKey },
-      })
-      if (sessRes.ok) {
-        const sessData = await sessRes.json() as { sessions: Array<{ instanceName: string; onboardingStatus?: string }> }
-        const session = sessData.sessions.find((s: { instanceName: string }) => s.instanceName === instanceName)
-        setStatus((session?.onboardingStatus as OnboardingStatus) ?? null)
-      }
-
-      // Fetch pending approvals proxied through Nova Worker
       const apRes = await fetch(
         `${url}/nova/approvals/${encodeURIComponent(instanceName)}`,
         { headers: { 'x-api-key': apiKey } }
@@ -109,15 +115,72 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
         setApprovals(apData.approvals.filter((a: NovaApproval) => a.status === 'pending_approval'))
       }
     } catch {
-      // Silently ignore poll errors — they'll retry next interval
+      // Silently ignore
     }
   }, [url, apiKey, instanceName])
 
+  // Initial hydration — fetch session status + approvals once on mount
+  const poll = useCallback(async () => {
+    try {
+      const sessRes = await fetch(`${url}/nova/sessions`, {
+        headers: { 'x-api-key': apiKey },
+      })
+      if (sessRes.ok) {
+        const sessData = await sessRes.json() as { sessions: Array<{ instanceName: string; onboardingStatus?: string; errorMessage?: string; emailOverride?: string }> }
+        const session = sessData.sessions.find((s: { instanceName: string }) => s.instanceName === instanceName)
+        setStatus((session?.onboardingStatus as OnboardingStatus) ?? null)
+        setErrorMessage(session?.errorMessage ?? null)
+        setEmailOverride(session?.emailOverride ?? null)
+      }
+    } catch {
+      // Silently ignore
+    }
+    await fetchApprovals()
+  }, [url, apiKey, instanceName, fetchApprovals])
+
+  // Run initial hydration on mount.
+  // Ongoing status and approval updates come exclusively via the WebSocket push
+  // in the effect below — polling is not needed.
   useEffect(() => {
     poll()
-    const interval = setInterval(poll, 5000)
-    return () => clearInterval(interval)
   }, [poll])
+
+  // Listen for nova_status_update messages pushed over the existing agent WebSocket.
+  // When a *_pending_approval status arrives, trigger a single approvals refetch
+  // so the new approval card appears immediately.
+  useEffect(() => {
+    if (!agent) return
+
+    function handleMessage(event: Event) {
+      const msgEvent = event as MessageEvent
+      try {
+        const data = JSON.parse(msgEvent.data as string) as {
+          type?: string
+          onboardingStatus?: string
+          errorMessage?: string
+          emailOverride?: string
+        }
+        if (data.type !== 'nova_status_update') return
+
+        if (data.onboardingStatus) {
+          setStatus(data.onboardingStatus as OnboardingStatus)
+        }
+        setErrorMessage(data.errorMessage ?? null)
+        if (data.emailOverride) setEmailOverride(data.emailOverride)
+
+        // Only refetch approvals when a new approval card becomes available.
+        // Approve/reject buttons handle their own refetch after acting.
+        if (data.onboardingStatus?.endsWith('_pending_approval')) {
+          fetchApprovals()
+        }
+      } catch {
+        // Not JSON or not a nova message — ignore
+      }
+    }
+
+    agent.addEventListener('message', handleMessage)
+    return () => agent.removeEventListener('message', handleMessage)
+  }, [agent, fetchApprovals])
 
   async function callNova(path: string, body: object) {
     const res = await fetch(`${url}${path}`, {
@@ -146,7 +209,7 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
       })
       setEditingId(null)
       showToast(`Approved — "${approval.stepId}" email will be sent`)
-      poll()
+      fetchApprovals()
     } catch (err) {
       showToast(`Error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -163,7 +226,7 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
         approved: false,
       })
       showToast(`Rejected — workflow will stop`)
-      poll()
+      fetchApprovals()
     } catch (err) {
       showToast(`Error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -176,7 +239,6 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
     try {
       await callNova('/nova/invite-accepted', { instanceName })
       showToast('Simulated invite accepted — workflow will complete')
-      poll()
     } catch (err) {
       showToast(`Error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -208,7 +270,7 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
           </div>
         </div>
         <button
-          onClick={poll}
+          onClick={() => poll()}
           title="Refresh"
           className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded"
         >
@@ -258,11 +320,17 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
                     : 'text-red-500'
                   }`}>
                     {step.label}
-                    {isCurrent && status === 'nudge_pending_approval' && (
+                    {isCurrent && (status === 'nudge_pending_approval') && (
                       <span className="block text-amber-600 font-normal mt-0.5">Nudge pending approval</span>
                     )}
                     {isCurrent && status === 'nudge_sent' && (
                       <span className="block text-indigo-500 font-normal mt-0.5">Nudge sent</span>
+                    )}
+                    {isCurrent && status === 'awaiting_acceptance' && (
+                      <span className="block text-gray-400 font-normal mt-0.5">Waiting for vendor to click invite link</span>
+                    )}
+                    {isCurrent && status === 'assessment_pending_approval' && (
+                      <span className="block text-amber-600 font-normal mt-0.5">Assessment email pending approval</span>
                     )}
                   </p>
                 </div>
@@ -270,11 +338,16 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
             })}
 
             {isFailed && (
-              <div className="flex items-center gap-2 mt-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Workflow stopped — rejected or timed out
+              <div className="mt-1 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 space-y-1">
+                <div className="flex items-center gap-2 font-medium">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Workflow failed
+                </div>
+                {errorMessage && (
+                  <p className="font-mono text-red-500 break-all leading-relaxed">{errorMessage}</p>
+                )}
               </div>
             )}
           </div>
@@ -387,10 +460,21 @@ export default function WorkflowPanel({ url, apiKey, instanceName }: Props) {
         </div>
 
         {/* Instance info */}
-        <div className="pt-1 border-t border-gray-100">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Instance</p>
+        <div className="pt-1 border-t border-gray-100 space-y-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Instance</p>
           <p className="text-xs font-mono text-gray-500 break-all">{instanceName}</p>
-          <p className="text-xs text-gray-400 mt-1">Polls every 5s</p>
+          {emailOverride && (
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+              <svg className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+              </svg>
+              <div>
+                <p className="text-xs font-semibold text-amber-700">Contact corrected</p>
+                <p className="text-xs font-mono text-amber-600 break-all mt-0.5">{emailOverride}</p>
+              </div>
+            </div>
+          )}
+          <p className="text-xs text-gray-400">{agent ? 'Real-time via WebSocket' : 'Refresh manually'}</p>
         </div>
       </div>
 

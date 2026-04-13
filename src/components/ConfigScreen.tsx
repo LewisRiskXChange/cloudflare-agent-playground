@@ -49,8 +49,8 @@ const AUTONOMY_OPTIONS: { value: AutonomyMode; label: string; description: strin
 
 export default function ConfigScreen({ onConnect, connecting = false, connectError = '' }: Props) {
   const saved = loadConfig()
-  const [url, setUrl] = useState(saved?.url ?? 'https://')
-  const [agentName, setAgentName] = useState(saved?.agentName ?? 'NovaAgent')
+  const [url, setUrl] = useState(saved?.url ?? 'http://localhost:8787')
+  const [agentName, setAgentName] = useState(saved?.agentName ?? 'NovaVendorAgent')
   const [companyId, setCompanyId] = useState(saved?.companyId ?? '')
   const [vendorId, setVendorId] = useState(saved?.vendorId ?? '')
   const [apiKey, setApiKey] = useState(saved?.apiKey ?? loadAdminApiKey())
@@ -80,8 +80,8 @@ export default function ConfigScreen({ onConnect, connecting = false, connectErr
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen bg-gray-50 flex items-start justify-center p-4 overflow-y-auto">
+      <div className="w-full max-w-md my-auto py-8">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-blue-600 mb-4">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

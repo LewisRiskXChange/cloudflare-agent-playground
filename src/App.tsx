@@ -2,8 +2,10 @@ import { useState } from 'react'
 import ConfigScreen, { type AgentConfig } from './components/ConfigScreen'
 import ChatScreen from './components/ChatScreen'
 import AdminScreen from './components/AdminScreen'
+import CompanyConfigScreen, { type CompanyAgentConfig } from './components/CompanyConfigScreen'
+import CompanyScreen from './components/CompanyScreen'
 
-type Mode = 'chat' | 'admin'
+type Mode = 'chat' | 'admin' | 'company'
 
 const MODE_KEY = 'cf-playground-mode'
 
@@ -12,6 +14,7 @@ export default function App() {
     (localStorage.getItem(MODE_KEY) as Mode) ?? 'chat'
   )
   const [chatConfig, setChatConfig] = useState<AgentConfig | null>(null)
+  const [companyConfig, setCompanyConfig] = useState<CompanyAgentConfig | null>(null)
   const [connecting, setConnecting] = useState(false)
   const [connectError, setConnectError] = useState('')
 
@@ -19,6 +22,7 @@ export default function App() {
     setMode(m)
     localStorage.setItem(MODE_KEY, m)
     if (m === 'chat') setChatConfig(null)
+    if (m === 'company') setCompanyConfig(null)
   }
 
   async function handleConnect(config: AgentConfig) {
@@ -44,7 +48,7 @@ export default function App() {
         )
         return
       }
-      const data = await res.json<{ ok: boolean; workflowError?: string | null }>().catch(() => ({ ok: true }))
+      const data = await res.json().catch(() => ({ ok: true })) as { ok: boolean; workflowError?: string | null }
       if (data.workflowError) {
         setConnectError(`Connected but workflow failed to start: ${data.workflowError}`)
         return
@@ -61,6 +65,23 @@ export default function App() {
     return <AdminScreen onSwitchToChat={() => switchMode('chat')} />
   }
 
+  if (mode === 'company') {
+    if (companyConfig) {
+      return <CompanyScreen {...companyConfig} onDisconnect={() => setCompanyConfig(null)} />
+    }
+    return (
+      <div className="relative">
+        <CompanyConfigScreen onConnect={setCompanyConfig} />
+        <button
+          onClick={() => switchMode('chat')}
+          className="fixed bottom-4 right-4 text-xs text-gray-500 bg-white border border-gray-200 shadow-sm rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+        >
+          ← Vendor chat
+        </button>
+      </div>
+    )
+  }
+
   if (chatConfig) {
     return <ChatScreen {...chatConfig} onDisconnect={() => setChatConfig(null)} />
   }
@@ -72,12 +93,20 @@ export default function App() {
         connecting={connecting}
         connectError={connectError}
       />
-      <button
-        onClick={() => switchMode('admin')}
-        className="fixed bottom-4 right-4 text-xs text-gray-500 bg-white border border-gray-200 shadow-sm rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
-      >
-        Admin view →
-      </button>
+      <div className="fixed bottom-4 right-4 flex gap-2">
+        <button
+          onClick={() => switchMode('company')}
+          className="text-xs text-violet-600 bg-white border border-violet-200 shadow-sm rounded-lg px-3 py-2 hover:bg-violet-50 transition-colors"
+        >
+          Company admin →
+        </button>
+        <button
+          onClick={() => switchMode('admin')}
+          className="text-xs text-gray-500 bg-white border border-gray-200 shadow-sm rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+        >
+          Admin view →
+        </button>
+      </div>
     </div>
   )
 }
